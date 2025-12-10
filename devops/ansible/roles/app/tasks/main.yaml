@@ -19,6 +19,12 @@
   copy:
     src: "{{ playbook_dir }}/../../devops/elk"
     dest: /opt/social-media-app/devops/
+
+- name: Tear down existing services
+  command: docker-compose down
+  args:
+    chdir: /opt/social-media-app
+  ignore_errors: yes
     
 - name: Pull Docker Images
   command: "docker pull raginimetlapalli/social-media-engagement-frontend:{{ image_tag | default('latest') }}"
@@ -35,3 +41,4 @@
     IMAGE_TAG: "{{ image_tag | default('latest') }}"
   args:
     chdir: /opt/social-media-app
+
