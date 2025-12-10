@@ -78,8 +78,11 @@ pipeline {
                 script {
                      // Run Ansible to pull new images and restart containers
                      // We use '--tags deploy' to skip checking for Docker installation (efficiency)
-                     dir('devops/ansible') {
-                         sh "ansible-playbook -i inventory.ini playbook.yaml --tags 'deploy' --extra-vars 'image_tag=${IMAGE_TAG}'"
+                     // We inject the SSH password safely from Jenkins Credentials
+                     withCredentials([string(credentialsId: 'host-ssh-pass', variable: 'SSH_PASS')]) {
+                         dir('devops/ansible') {
+                             sh "ansible-playbook -i inventory.ini playbook.yaml --tags 'deploy' --extra-vars 'image_tag=${IMAGE_TAG} ansible_ssh_pass=${SSH_PASS} ansible_sudo_pass=${SSH_PASS}'"
+                         }
                      }
                 }
             }
