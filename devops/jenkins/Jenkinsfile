@@ -57,6 +57,7 @@ pipeline {
                          sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/deployment.yaml"
                          sh 'kubectl apply -f devops/kubernetes/deployment.yaml'
                          sh 'kubectl apply -f devops/kubernetes/service.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/hpa.yaml'
                     }
                 }
             }
