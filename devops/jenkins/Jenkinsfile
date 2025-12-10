@@ -14,15 +14,6 @@ pipeline {
             }
         }
 
-        stage('Provision Infrastructure (Ansible)') {
-            steps {
-                // Phase 1 Automation: Only install Infrastructure (Docker, K8s)
-                // We use '--tags setup' to skip the app deployment
-                dir('devops/ansible') {
-                    sh 'ansible-playbook -i inventory.ini playbook.yaml --tags "setup"'
-                }
-            }
-        }
 
         stage('Build Docker Images') {
             steps {
@@ -84,3 +75,4 @@ pipeline {
         }
     }
 }
+
