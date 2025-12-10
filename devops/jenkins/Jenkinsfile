@@ -14,23 +14,25 @@ pipeline {
             }
         }
 
+        stage('Test Backend') {
+            agent {
+                docker { image 'python:3.9' }
+            }
+            steps {
+                script {
+                    dir('backend') {
+                        sh 'pip install --no-cache-dir -r requirements.txt'
+                        sh 'pytest'
+                    }
+                }
+            }
+        }
 
         stage('Build Docker Images') {
             steps {
                 script {
                     sh 'docker build -t ${DOCKER_HUB_REPO}-frontend:${IMAGE_TAG} ./frontend'
                     sh 'docker build -t ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG} ./backend'
-                }
-            }
-        }
-
-        stage('Test') {
-            steps {
-                script {
-                    // Run Unit Tests inside the backend container
-                    // We use the image we just built to ensure consistency
-                    sh 'echo "Running Tests..."'
-                    sh 'docker run --rm ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG} pytest'
                 }
             }
         }
@@ -76,4 +78,3 @@ pipeline {
         }
     }
 }
-
