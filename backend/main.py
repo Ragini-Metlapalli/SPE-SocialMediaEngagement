@@ -72,6 +72,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {"message": "Engagement Predictor API is running."}
+
 # ----------------------------------------------------------
 #                   NLP HELPER FUNCTIONS
 # ----------------------------------------------------------
@@ -243,4 +247,5 @@ async def predict(data: UserInput):
         recommended_day=best_day_str,
         recommended_time=best_time_str
     )
+
 
