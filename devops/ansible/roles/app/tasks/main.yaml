@@ -1,0 +1,10 @@
+- name: Pull Docker Images
+  command: "docker pull user/social-media-engagement-backend:{{ image_tag | default('latest') }}"
+  
+- name: Run Application Stack
+  # We use environment variable to override likely or just rely on 'latest' if compose uses it. 
+  # Better approach: We update the .env file or rely on tag. 
+  # For this simple setup, we'll force 'latest' update since we pushed 'latest' in Jenkins.
+  command: docker-compose up -d --build
+  args:
+    chdir: /opt/social-media-app

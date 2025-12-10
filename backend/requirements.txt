@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+pydantic
+catboost
+scikit-learn
+joblib
+pandas
+numpy
+textblob
+python-multipart
+python-logstash
+nltk
+
+pytest
+httpx
+
+

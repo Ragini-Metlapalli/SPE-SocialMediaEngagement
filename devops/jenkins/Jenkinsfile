@@ -1,0 +1,88 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_HUB_REPO = "user/social-media-engagement"
+        KUBECONFIG_ID = "k8s-config"
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Provision Infrastructure (Ansible)') {
+            steps {
+                // Phase 1 Automation: Only install Infrastructure (Docker, K8s)
+                // We use '--tags setup' to skip the app deployment
+                sh 'apt-get update && apt-get install -y ansible'
+                dir('devops/ansible') {
+                    sh 'ansible-playbook -i inventory.ini playbook.yaml --tags "setup"'
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    sh 'docker build -t ${DOCKER_HUB_REPO}-frontend:${IMAGE_TAG} ./frontend'
+                    sh 'docker build -t ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG} ./backend'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                script {
+                    // Run Unit Tests inside the backend container
+                    // We use the image we just built to ensure consistency
+                    sh 'echo "Running Tests..."'
+                    sh 'docker run --rm ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG} pytest'
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withDockerRegistry(credentialsId: 'docker-hub-credentials', url: '') {
+                    sh 'docker push ${DOCKER_HUB_REPO}-frontend:${IMAGE_TAG}'
+                    sh 'docker push ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG}'
+
+                    // Also push 'latest' so Ansible default works, or for general ease of use
+                    sh 'docker tag ${DOCKER_HUB_REPO}-frontend:${IMAGE_TAG} ${DOCKER_HUB_REPO}-frontend:latest'
+                    sh 'docker tag ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG} ${DOCKER_HUB_REPO}-backend:latest'
+                    sh 'docker push ${DOCKER_HUB_REPO}-frontend:latest'
+                    sh 'docker push ${DOCKER_HUB_REPO}-backend:latest'
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    withKubeConfig([credentialsId: "${KUBECONFIG_ID}"]) {
+                         sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/deployment.yaml"
+                         sh 'kubectl apply -f devops/kubernetes/deployment.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/service.yaml'
+                    }
+                }
+            }
+        }
+
+        stage('Deploy with Ansible') {
+            steps {
+                script {
+                     // Run Ansible to pull new images and restart containers
+                     // We use '--tags deploy' to skip checking for Docker installation (efficiency)
+                     sh 'apt-get update && apt-get install -y ansible'
+                     dir('devops/ansible') {
+                         sh "ansible-playbook -i inventory.ini playbook.yaml --tags 'deploy' --extra-vars 'image_tag=${IMAGE_TAG}'"
+                     }
+                }
+            }
+        }
+    }
+}

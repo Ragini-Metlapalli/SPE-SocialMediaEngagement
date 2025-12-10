@@ -1,0 +1,8 @@
+---
+- name: Provision Deployment Server
+  hosts: servers
+  become: true
+  roles:
+    - { role: docker, tags: ['setup'] }
+    - { role: kubernetes, tags: ['setup'] }
+    - { role: app, tags: ['deploy'] }

@@ -1,0 +1,22 @@
+---
+- name: Download Kubectl
+  get_url:
+    url: https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl
+    dest: /usr/local/bin/kubectl
+    mode: '0755'
+
+- name: Download Minikube
+  get_url:
+    url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+    dest: /usr/local/bin/minikube
+    mode: '0755'
+
+- name: Start Minikube (as original user)
+  command: minikube start --driver=docker
+  become: false
+  ignore_errors: yes
+
+- name: Deploy Monitoring Stack (Prometheus & Grafana)
+  command: "kubectl apply -f {{ playbook_dir }}/../kubernetes/monitoring/"
+  become: false
+  ignore_errors: yes
