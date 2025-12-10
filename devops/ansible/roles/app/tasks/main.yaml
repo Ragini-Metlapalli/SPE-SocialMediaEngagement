@@ -20,6 +20,10 @@
     src: "{{ playbook_dir }}/../../devops/elk"
     dest: /opt/social-media-app/devops/
 
+- name: Force Clean Conflicting Containers
+  shell: "docker rm -f social-media-backend social-media-frontend elasticsearch logstash kibana || true"
+  ignore_errors: yes
+
 - name: Tear down existing services
   command: docker-compose down
   args:
