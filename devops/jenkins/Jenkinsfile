@@ -21,8 +21,14 @@ pipeline {
             steps {
                 script {
                     dir('backend') {
-                        sh 'pip install --no-cache-dir -r requirements.txt'
-                        sh 'pytest'
+                        // Use a virtual environment to avoid permission issues (writing to / or /usr)
+                        // and ensure we are isolated.
+                        sh '''
+                            python -m venv venv
+                            . venv/bin/activate
+                            pip install --no-cache-dir -r requirements.txt
+                            pytest
+                        '''
                     }
                 }
             }
@@ -78,3 +84,4 @@ pipeline {
         }
     }
 }
+
