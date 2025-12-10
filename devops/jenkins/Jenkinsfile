@@ -47,7 +47,7 @@ pipeline {
 
         stage('Push to Docker Hub') {
             steps {
-                withDockerRegistry(credentialsId: 'docker-hub-credentials', url: '') {
+                withDockerRegistry(credentialsId: 'dockerhub-creds', url: '') {
                     sh 'docker push ${DOCKER_HUB_REPO}-frontend:${IMAGE_TAG}'
                     sh 'docker push ${DOCKER_HUB_REPO}-backend:${IMAGE_TAG}'
 
