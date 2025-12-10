@@ -2,13 +2,13 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
+    image: raginimetlapalli/social-media-engagement-backend:${IMAGE_TAG:-latest}
     ports:
       - "8000:8000"
     container_name: social-media-backend
 
   frontend:
-    build: ./frontend
+    image: raginimetlapalli/social-media-engagement-frontend:${IMAGE_TAG:-latest}
     ports:
       - "5173:80"
     depends_on:

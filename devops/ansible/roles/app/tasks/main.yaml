@@ -1,10 +1,37 @@
+- name: Create App Directory
+  file:
+    path: /opt/social-media-app
+    state: directory
+    mode: '0755'
+
+- name: Copy Docker Compose
+  copy:
+    src: "{{ playbook_dir }}/../../docker-compose.yml"
+    dest: /opt/social-media-app/docker-compose.yml
+
+- name: Create DevOps Directory
+  file:
+    path: /opt/social-media-app/devops
+    state: directory
+    mode: '0755'
+
+- name: Copy ELK Configuration
+  copy:
+    src: "{{ playbook_dir }}/../../devops/elk"
+    dest: /opt/social-media-app/devops/
+    
 - name: Pull Docker Images
-  command: "docker pull user/social-media-engagement-backend:{{ image_tag | default('latest') }}"
+  command: "docker pull raginimetlapalli/social-media-engagement-frontend:{{ image_tag | default('latest') }}"
+
+- name: Pull Docker Images (Backend)
+  command: "docker pull raginimetlapalli/social-media-engagement-backend:{{ image_tag | default('latest') }}"
   
 - name: Run Application Stack
   # We use environment variable to override likely or just rely on 'latest' if compose uses it. 
   # Better approach: We update the .env file or rely on tag. 
   # For this simple setup, we'll force 'latest' update since we pushed 'latest' in Jenkins.
-  command: docker-compose up -d --build
+  command: docker-compose up -d
+  environment:
+    IMAGE_TAG: "{{ image_tag | default('latest') }}"
   args:
     chdir: /opt/social-media-app
