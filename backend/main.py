@@ -203,29 +203,44 @@ async def predict(data: UserInput):
 
     df = pd.DataFrame(rows)
 
-    # Apply label encoders
+    # Feature Engineering for Time
+    df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24)
+    df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24)
+    
+    # Explicitly matched with model.feature_names_
+    expected_features = [
+        'hour', 'hour_sin', 'hour_cos', 'day_num', 
+        'sentiment_score_reg', 'toxicity_score_reg', 
+        'user_past_sentiment_avg', 'user_engagement_growth', 'buzz_change_rate', 
+        'keywords_len', 'hashtags_count', 
+        'platform', 'location', 'language_reg', 'topic_reg', 'sentiment_label_reg', 'emotion_reg', 
+        'brand_name', 'product_name', 'campaign_name', 'campaign_phase', 'day_num_cat'
+    ]
+
+    # Apply label encoders if available, else ensure column exists
     label_encoders = models.get('label_encoders', {})
+    
+    for col in expected_features:
+        if col not in df.columns:
+            # If missing (e.g. brand_name), fill with Unknown/0
+            if "reg" in col or "avg" in col or "growth" in col or "rate" in col or "len" in col or "count" in col or "sin" in col or "cos" in col or col in ["hour", "day_num"]:
+                 df[col] = 0
+            else:
+                 df[col] = "Unknown"
+
+    # Encode categoricals safely
     for col, le in label_encoders.items():
         if col in df.columns:
-            df[col] = df[col].apply(lambda x: x if x in le.classes_ else "Unknown")
-            try:
-                df[col] = le.transform(df[col])
-            except:
-                df[col] = 0
+             # Safe transform
+             df[col] = df[col].apply(lambda x: x if x in le.classes_ else "Unknown")
+             try:
+                 df[col] = le.transform(df[col])
+             except:
+                 # Should not happen due to apply check, but safety fallback
+                 df[col] = 0
 
-    # Only the needed features
-    final_features = [
-        "hour","sentiment_score_reg","toxicity_score_reg",
-        "user_past_sentiment_avg","user_engagement_growth","buzz_change_rate",
-        "keywords_len","hashtags_count"
-    ] + list(label_encoders.keys())
-
-    # Ensure all columns exist
-    for col in final_features:
-        if col not in df.columns:
-            df[col] = 0
-
-    X = df[final_features]
+    # Strict Ordering
+    X = df[expected_features]
 
     preds = models['main_model'].predict(X)
     df["pred"] = preds
