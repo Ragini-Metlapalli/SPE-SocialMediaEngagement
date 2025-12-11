@@ -45,4 +45,3 @@
     IMAGE_TAG: "{{ image_tag | default('latest') }}"
   args:
     chdir: /opt/social-media-app
-

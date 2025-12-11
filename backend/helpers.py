@@ -1,0 +1,147 @@
+import pandas as pd
+import numpy as np
+import re
+from transformers import pipeline
+from detoxify import Detoxify
+
+# ---------------------------------------------------------
+# CONSTANTS
+# ---------------------------------------------------------
+TOPIC_OPTIONS = [
+    "Finance", "Food", "Sports", "Education", "Gaming", "Climate",
+    "Business", "Travel", "Fashion", "Politics", "Health",
+    "Entertainment", "Science", "AI/ML", "Technology"
+]
+
+def load_nlp_models():
+    """
+    Loads heavy NLP models.
+    NOTE: This might take time on first run.
+    """
+    print(" Loading Topic Classifier...")
+    # Zero-shot classification
+    topic_classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
+    print(" Loading Language Detector...")
+    lang_detector = pipeline("text-classification", model="papluca/xlm-roberta-base-language-detection")
+
+    print(" Loading Sentiment Analyzer...")
+    # Returns score for Negative, Neutral, Positive
+    sentiment_analyzer = pipeline("sentiment-analysis", model="cardiffnlp/twitter-xlm-roberta-base-sentiment")
+
+    print(" Loading Detoxify...")
+    toxicity_model = Detoxify("original")
+
+    return {
+        "topic": topic_classifier,
+        "lang": lang_detector,
+        "sentiment": sentiment_analyzer,
+        "toxicity": toxicity_model
+    }
+
+def infer_topic(caption, classifier):
+    result = classifier(caption, TOPIC_OPTIONS)
+    return result["labels"][0]
+
+def infer_language(caption, detector):
+    result = detector(caption)[0]["label"]
+    return result.lower()
+
+def infer_sentiment(caption, analyzer):
+    # return_all_scores=True gives us the full distribution
+    results = analyzer(caption, return_all_scores=True)[0]
+    
+    # Example structure: [{'label': 'Negative', 'score': 0.01}, ...]
+    prob_dict = { item["label"].lower(): float(item["score"]) for item in results }
+    
+    return {
+        "pos": prob_dict.get("positive", 0.0),
+        "neg": prob_dict.get("negative", 0.0),
+        "neu": prob_dict.get("neutral", 0.0),
+        "label": max(prob_dict, key=prob_dict.get)
+    }
+
+def infer_toxicity(caption, model):
+    scores = model.predict(caption)
+    return float(scores["toxicity"])
+
+def extract_caption_features(caption, pipelines):
+    """
+    Runs all NLP models on the caption.
+    """
+    topic = infer_topic(caption, pipelines["topic"])
+    language = infer_language(caption, pipelines["lang"])
+    sentiment = infer_sentiment(caption, pipelines["sentiment"])
+    toxicity = infer_toxicity(caption, pipelines["toxicity"])
+    
+    return {
+        "topic": topic,
+        "language": language,
+        "content_length": len(caption),
+        "num_hashtags": len(re.findall(r"#\w+", caption)),
+        
+        "sentiment_positive": sentiment["pos"],
+        "sentiment_negative": sentiment["neg"],
+        "sentiment_neutral": sentiment["neu"],
+        "sentiment_category": sentiment["label"],
+        
+        "toxicity_score": toxicity * 100 # Scaling to 0-100 if model output is 0-1
+    }
+
+def predict_best_time_logic(model, req, nlp_features):
+    """
+    Generates a 7x24 grid and predicts engagement for each slot.
+    Returns (Best Day, Best Hour, Predicted Engagement).
+    """
+    rows = []
+    
+    # We must match the EXACT feature order expected by the pipeline/model
+    # Based on notebook analysis:
+    # platform, followers, account_age_days, verified, media_type, location, 
+    # topic, language, content_length, num_hashtags, 
+    # sentiment_positive, sentiment_negative, sentiment_neutral, toxicity_score, 
+    # day_of_week, hour_of_day, cross_platform_spread
+
+    for day in range(7):
+        for hour in range(24):
+            row = {
+                "platform": req.platform,
+                "followers": req.followers,
+                "account_age_days": req.account_age_days,
+                "verified": req.verified,
+                "media_type": req.media_type,
+                "location": req.location,
+                
+                "topic": nlp_features["topic"],
+                "language": nlp_features["language"],
+                "content_length": nlp_features["content_length"],
+                "num_hashtags": nlp_features["num_hashtags"],
+                
+                "sentiment_positive": nlp_features["sentiment_positive"],
+                "sentiment_negative": nlp_features["sentiment_negative"],
+                "sentiment_neutral": nlp_features["sentiment_neutral"],
+                
+                "toxicity_score": nlp_features["toxicity_score"],
+                
+                "day_of_week": day,
+                "hour_of_day": hour,
+                "cross_platform_spread": req.cross_platform_spread
+            }
+            rows.append(row)
+            
+    df_pred = pd.DataFrame(rows)
+    
+    # The pipeline in pickle file handles Preprocessing (OneHot) automatically
+    predictions = model.predict(df_pred)
+    
+    df_pred["predicted_engagement"] = predictions
+    
+    # Find max
+    best_row_idx = df_pred["predicted_engagement"].idxmax()
+    best_row = df_pred.loc[best_row_idx]
+    
+    return (
+        int(best_row["day_of_week"]),
+        int(best_row["hour_of_day"]),
+        float(best_row["predicted_engagement"])
+    )

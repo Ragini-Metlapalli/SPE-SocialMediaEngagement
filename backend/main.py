@@ -1,69 +1,51 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from fastapi.middleware.cors import CORSMiddleware
+import joblib
 import pandas as pd
 import numpy as np
-import joblib
-from catboost import CatBoostRegressor, CatBoostClassifier
-import nltk
 import re
-from nltk.sentiment import SentimentIntensityAnalyzer
-import logging
-import logstash
 from contextlib import asynccontextmanager
+from helpers import (
+    load_nlp_models,
+    extract_caption_features,
+    predict_best_time_logic
+)
 
-# Download NLTK data
-nltk.download('vader_lexicon', quiet=True)
-
-# ----------------------------------------------------------
-#                 LOGGING SETUP
-# ----------------------------------------------------------
-logger = logging.getLogger('python-logstash-logger')
-logger.setLevel(logging.INFO)
-try:
-   logger.addHandler(logstash.TCPLogstashHandler('logstash', 5000, version=1))
-except:
-   print("Logstash handler could not be added (Host not found?)")
-
-# Global Model Storage (Loaded in lifespan for safety/mocking if needed, 
-# but user script does top-level. We will do top-level but inside try/except to avoid crashes if files missing)
-models = {}
+# ---------------------------------------------------------
+# GLOBAL STATE
+# ---------------------------------------------------------
+model = None
+nlp_pipelines = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load Models directly from filesystem
+    # Load LightGBM/Sklearn Model
+    global model
     try:
-        logger.info("Loading models...")
-        
-        models['main_model'] = CatBoostRegressor()
-        models['main_model'].load_model("model.cbm")
-        
-        models['tfidf_general'] = joblib.load("tfidf_general.joblib")
-        
-        models['topic_model'] = joblib.load("topic_model.joblib")
-        models['topic_vectorizer'] = joblib.load("topic_vectorizer.joblib")
-        models['le_topic'] = joblib.load("le_topic.joblib") 
-        
-        models['emotion_model'] = joblib.load("emotion_model.joblib")
-        models['emotion_vectorizer'] = joblib.load("emotion_vectorizer.joblib")
-        models['le_emotion'] = joblib.load("le_emotion.joblib")
-        
-        if os.path.exists("label_encoders.joblib"):
-             models['label_encoders'] = joblib.load("label_encoders.joblib")
-        else:
-             models['label_encoders'] = {}
-
-        print("Models loaded successfully.")
+        model = joblib.load("best_time_model.pkl")
+        print(" Main Model loaded successfully.")
     except Exception as e:
-        print(f"Error loading models: {e}")
-        logger.error(f"Error loading models: {e}")
+        print(f" Failed to load model: {e}")
+        # We might want to exit here if critical, but for now we print error
+
+    # Load Deep Learning Models
+    global nlp_pipelines
+    try:
+        nlp_pipelines = load_nlp_models()
+        print(" NLP Models loaded successfully.")
+    except Exception as e:
+        print(f" Failed to load NLP models: {e}")
 
     yield
-    models.clear()
+    # Cleanup if needed
+    nlp_pipelines.clear()
 
 app = FastAPI(lifespan=lifespan)
 
+# ---------------------------------------------------------
+# CORS
+# ---------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -72,195 +54,58 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------
+# DATA SCHEMAS
+# ---------------------------------------------------------
+class PredictionRequest(BaseModel):
+    platform: str
+    followers: int
+    account_age_days: int
+    verified: int  # 0 or 1
+    media_type: str
+    location: str
+    caption: str
+    cross_platform_spread: int # 0 or 1
+
+class PredictionResponse(BaseModel):
+    best_day: int
+    best_hour: int
+    predicted_engagement: float
+    nlp_insights: dict
+
+# ---------------------------------------------------------
+# ROUTES
+# ---------------------------------------------------------
 @app.get("/")
 def read_root():
-    return {"message": "Engagement Predictor API is running."}
+    return {"status": "healthy", "message": "Social Media Engagement API is running with NLP Power"}
 
-# ----------------------------------------------------------
-#                   NLP HELPER FUNCTIONS
-# ----------------------------------------------------------
-sia = SentimentIntensityAnalyzer()
+@app.post("/predict", response_model=PredictionResponse)
+def predict(request: PredictionRequest):
+    if not model:
+        raise HTTPException(status_code=500, detail="Model not loaded")
+    if not nlp_pipelines:
+         raise HTTPException(status_code=500, detail="NLP models not loaded")
 
-def guess_language(text):
-    text = text.lower()
-    if re.search(r"[а-яё]", text): return "ru"
-    if re.search(r"[一-龯ぁ-ゟ]", text): return "zh/ja"
-    if re.search(r"[가-힣]", text): return "ko"
-    if re.search(r"[ह-ॣ]", text): return "hi"
-    if re.search(r"[ا-ي]", text): return "ar"
-    return "en"
+    try:
+        # 1. Extract NLP Features
+        nlp_features = extract_caption_features(request.caption, nlp_pipelines)
 
-def get_sentiment_score_label(text):
-    score = sia.polarity_scores(text)["compound"]
-    if score >= 0.2:
-        return score, "positive"
-    elif score <= -0.2:
-        return score, "negative"
-    else:
-        return score, "neutral"
+        # 2. Find Best Time
+        best_day, best_hour, max_eng = predict_best_time_logic(
+            model=model,
+            req=request,
+            nlp_features=nlp_features
+        )
 
-TOXIC_WORDS = {"hate","stupid","idiot","trash","garbage","worst","sucks"}
-def get_toxicity(text):
-    t = text.lower()
-    return sum(w in t for w in TOXIC_WORDS) / len(TOXIC_WORDS)
+        return {
+            "best_day": best_day,
+            "best_hour": best_hour,
+            "predicted_engagement": max_eng,
+            "nlp_insights": nlp_features
+        }
 
-def get_keywords(text, top_n=5):
-    if 'tfidf_general' not in models: return ""
-    vec = models['tfidf_general'].transform([text])
-    scores = vec.toarray()[0]
-    if scores.sum() == 0:
-        return ""
-    feature_names = models['tfidf_general'].get_feature_names_out()
-    top_idx = np.argsort(scores)[-top_n:][::-1]
-    return " ".join(feature_names[i] for i in top_idx)
-
-# ----------------------------------------------------------
-#                     INPUT SCHEMA
-# ----------------------------------------------------------
-class UserInput(BaseModel):
-    caption: str
-    platform: str
-    hashtags: Optional[str] = ""
-    location: Optional[str] = "Unknown"
-    brand_name: Optional[str] = "Unknown"
-    product_name: Optional[str] = "Unknown"
-    campaign_name: Optional[str] = "Unknown"
-    campaign_phase: Optional[str] = "Unknown"
-    user_past_sentiment_avg: float = 0.0
-    user_engagement_growth: float = 0.0
-    buzz_change_rate: float = 0.0
-
-class ProcessingResult(BaseModel):
-    language: str
-    keywords: List[str]
-    topic_categories: List[str]
-    sentiment_score: float
-    sentiment_label: str
-    emotion_type: str
-    toxicity_score: float
-    recommended_day: str
-    recommended_time: str
-
-@app.post("/predict", response_model=ProcessingResult)
-async def predict(data: UserInput):
-    logger.info(f"Predicting for {data.platform}")
-    if 'main_model' not in models:
-        raise HTTPException(status_code=503, detail="Models not loaded")
-
-    text = data.caption + " " + (data.hashtags or "")
-
-    # NLP extracted features
-    lang = guess_language(text)
-    keywords = get_keywords(text)
-    sent_score, sent_label = get_sentiment_score_label(text)
-    tox = get_toxicity(text)
-
-    # Topic prediction
-    X_topic = models['topic_vectorizer'].transform([text])
-    topic_idx = models['topic_model'].predict(X_topic)[0]
-    if hasattr(models['le_topic'], 'inverse_transform'):
-         topic_label = models['le_topic'].inverse_transform([topic_idx])[0]
-    else:
-         topic_label = str(topic_idx)
-
-    # Emotion prediction
-    X_emotion = models['emotion_vectorizer'].transform([text])
-    emo_idx = models['emotion_model'].predict(X_emotion)[0]
-    if hasattr(models['le_emotion'], 'inverse_transform'):
-        emotion_label = models['le_emotion'].inverse_transform([emo_idx])[0]
-    else:
-        emotion_label = str(emo_idx)
-
-    # Build 168 combinations
-    rows = []
-    days_map = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Friday", 5: "Saturday", 6: "Sunday"}
-    
-    for day in range(7):
-        for hour in range(24):
-            rows.append({
-                "platform": data.platform,
-                "location": data.location,
-                "language_reg": lang,
-                "topic_reg": topic_label,
-                "sentiment_label_reg": sent_label,
-                "emotion_reg": emotion_label,
-                "brand_name": data.brand_name,
-                "product_name": data.product_name,
-                "campaign_name": data.campaign_name,
-                "campaign_phase": data.campaign_phase,
-                "sentiment_score_reg": sent_score,
-                "toxicity_score_reg": tox,
-                "keywords_reg": keywords,
-                "keywords_len": len(keywords.split()),
-                "hashtags_count": len(data.hashtags.split(",")) if data.hashtags else 0,
-                "user_past_sentiment_avg": data.user_past_sentiment_avg,
-                "user_engagement_growth": data.user_engagement_growth,
-                "buzz_change_rate": data.buzz_change_rate,
-                "day_num": day,
-                "day_num_cat": str(day),
-                "hour": hour
-            })
-
-    df = pd.DataFrame(rows)
-
-    # Feature Engineering for Time
-    df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24)
-    df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24)
-    
-    # Explicitly matched with model.feature_names_
-    expected_features = [
-        'hour', 'hour_sin', 'hour_cos', 'day_num', 
-        'sentiment_score_reg', 'toxicity_score_reg', 
-        'user_past_sentiment_avg', 'user_engagement_growth', 'buzz_change_rate', 
-        'keywords_len', 'hashtags_count', 
-        'platform', 'location', 'language_reg', 'topic_reg', 'sentiment_label_reg', 'emotion_reg', 
-        'brand_name', 'product_name', 'campaign_name', 'campaign_phase', 'day_num_cat'
-    ]
-
-    # Apply label encoders if available, else ensure column exists
-    label_encoders = models.get('label_encoders', {})
-    
-    for col in expected_features:
-        if col not in df.columns:
-            # If missing (e.g. brand_name), fill with Unknown/0
-            if "reg" in col or "avg" in col or "growth" in col or "rate" in col or "len" in col or "count" in col or "sin" in col or "cos" in col or col in ["hour", "day_num"]:
-                 df[col] = 0
-            else:
-                 df[col] = "Unknown"
-
-    # Encode categoricals safely
-    for col, le in label_encoders.items():
-        if col in df.columns:
-             # Safe transform
-             df[col] = df[col].apply(lambda x: x if x in le.classes_ else "Unknown")
-             try:
-                 df[col] = le.transform(df[col])
-             except:
-                 # Should not happen due to apply check, but safety fallback
-                 df[col] = 0
-
-    # Strict Ordering
-    X = df[expected_features]
-
-    preds = models['main_model'].predict(X)
-    df["pred"] = preds
-
-    best_idx = np.argmax(preds)
-    best_row = df.iloc[best_idx]
-    
-    best_day_str = days_map.get(int(best_row["day_num"]), "Monday")
-    best_time_str = f"{int(best_row['hour']):02d}:00"
-
-    return ProcessingResult(
-        language=lang,
-        keywords=keywords.split(),
-        topic_categories=[topic_label],
-        sentiment_score=float(sent_score),
-        sentiment_label=sent_label,
-        emotion_type=emotion_label,
-        toxicity_score=float(tox),
-        recommended_day=best_day_str,
-        recommended_time=best_time_str
-    )
-
-
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

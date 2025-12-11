@@ -26,8 +26,8 @@ pipeline {
                         sh '''
                             python -m venv venv
                             . venv/bin/activate
-                            mkdir -p nltk_data
-                            export NLTK_DATA=$(pwd)/nltk_data
+
+
                             pip install --no-cache-dir -r requirements.txt
                             pytest
                         '''
@@ -89,4 +89,3 @@ pipeline {
         }
     }
 }
-
