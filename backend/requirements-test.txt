@@ -2,3 +2,6 @@ pytest
 httpx
 fastapi
 starlette
+joblib
+pandas
+numpy
