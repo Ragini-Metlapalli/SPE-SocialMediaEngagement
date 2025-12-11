@@ -1,89 +1,121 @@
 from fastapi.testclient import TestClient
-from main import app
+from unittest.mock import MagicMock, patch
 import pytest
-import os
+import sys
 
-# Create TestClient
-client = TestClient(app)
+# We need to mock 'helpers' and 'joblib' BEFORE importing main
+# because main imports them at top level or in lifespan
 
-def test_read_root():
-    """Verify the API is running and reachable."""
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {"message": "Engagement Predictor API is running."}
+# ---------------------------------------------------------
+# MOCKS
+# ---------------------------------------------------------
+mock_model = MagicMock()
+mock_model.predict.return_value = [45.2] # Mock predicted engagement
 
-def test_predict_full_payload():
-    """Test /predict with all fields provided."""
-    # We assume model files MIGHT be missing in CI environment if not properly mounted/copied.
-    # But for this test suite, if the app starts, it means lifespan worked or failed gracefully.
-    
-    payload = {
-        "caption": "Loving the new summer vibes! #summer #fun",
-        "platform": "Instagram",
-        "hashtags": "summer, fun, vibes",
-        "location": "New York",
-        "brand_name": "MyBrand",
-        "user_past_sentiment_avg": 0.8,
-        "user_engagement_growth": 0.05
-    }
-    
-    response = client.post("/predict", json=payload)
-    
-    # If models loaded successfully, we expect 200. 
-    # If they failed to load (e.g. file not found), main.py raises 503.
-    # We assert that we get a valid response OR a known error state, 
-    # rather than a crash (500).
-    
-    assert response.status_code in [200, 503]
-    
-    if response.status_code == 200:
+mock_nlp_results = {
+    "topic": "Technology",
+    "language": "en",
+    "content_length": 50,
+    "num_hashtags": 2,
+    "sentiment_positive": 0.9,
+    "sentiment_negative": 0.05,
+    "sentiment_neutral": 0.05,
+    "sentiment_category": "positive",
+    "toxicity_score": 0.5
+}
+
+# ---------------------------------------------------------
+# SETUP
+# ---------------------------------------------------------
+# Patching external dependencies to avoid loading heavy models
+with patch("joblib.load", return_value=mock_model) as mock_load, \
+     patch("helpers.load_nlp_models", return_value={"mock": "pipeline"}) as mock_nlp_load, \
+     patch("helpers.extract_caption_features", return_value=mock_nlp_results) as mock_extract, \
+     patch("helpers.predict_best_time_logic", return_value=(2, 14, 88.5)) as mock_logic:
+
+    from main import app
+
+    client = TestClient(app)
+
+    # ---------------------------------------------------------
+    # TESTS
+    # ---------------------------------------------------------
+
+    def test_read_root():
+        """Verify the API is running."""
+        response = client.get("/")
+        assert response.status_code == 200
+        assert response.json()["status"] == "healthy"
+
+    def test_predict_success():
+        """Test /predict with valid payload and mocked models."""
+        
+        # We need to force the reload of dependencies inside the app context if needed,
+        # but since we patched at import time, 'main.model' and 'main.nlp_pipelines' 
+        # need to be manually set if the lifespan didn't run.
+        # However, TestClient(app) runs the lifespan context manager!
+        
+        payload = {
+            "platform": "Twitter",
+            "caption": "Excited about AI! #tech",
+            "followers": 1500,
+            "account_age_days": 365,
+            "verified": 1,
+            "media_type": "Text",
+            "location": "North America",
+            "cross_platform_spread": 0
+        }
+
+        response = client.post("/predict", json=payload)
+        
+        assert response.status_code == 200
         data = response.json()
-        assert "recommended_day" in data
-        assert "recommended_time" in data
-        assert "sentiment_score" in data
-        # Check logic: caption includes "Loving" -> likely positive
-        assert data["sentiment_label"] in ["positive", "neutral", "negative"]
+        
+        # Verify schema
+        assert "best_day" in data
+        assert "best_hour" in data
+        assert "predicted_engagement" in data
+        assert "nlp_insights" in data
+        
+        # Verify values from our mocks
+        assert data["best_day"] == 2
+        assert data["best_hour"] == 14
+        assert data["predicted_engagement"] == 88.5
+        assert data["nlp_insights"]["topic"] == "Technology"
 
-def test_predict_minimal_payload():
-    """Test /predict with only required fields."""
-    payload = {
-        "caption": "Simple test caption",
-        "platform": "Twitter"
-    }
-    response = client.post("/predict", json=payload)
-    assert response.status_code in [200, 503]
-    
-    if response.status_code == 200:
-        data = response.json()
-        assert data["language"] == "en"
+    def test_predict_missing_field():
+        """Test validation error for missing field."""
+        payload = {
+            "platform": "Twitter",
+            # missing caption
+            "followers": 100
+        }
+        response = client.post("/predict", json=payload)
+        assert response.status_code == 422
 
-def test_invalid_platform_type():
-    """Test validation (if we had Enum, but currently string so check logic)."""
-    # Currently platform is just a string, so this should pass API validation 
-    # but might be handled by logic.
-    payload = {
-        "caption": "Test",
-        "platform": 123  # Invalid type
-    }
-    response = client.post("/predict", json=payload)
-    # FastAPI/Pydantic validation should return 422
-    assert response.status_code == 422
+    def test_predict_model_failure():
+        """Test graceful 500 if models are missing (simulated)."""
+        # Create a fresh app instance to simulate empty global state
+        from main import app as fresh_app
+        # We manually unset globals to simulate load failure
+        import main
+        main.model = None 
+        main.nlp_pipelines = {}
+        
+        local_client = TestClient(fresh_app)
+        
+        payload = {
+            "platform": "Twitter",
+            "caption": "Fail me",
+            "followers": 100,
+            "account_age_days": 100,
+            "verified": 0,
+            "media_type": "Text",
+            "location": "Unknown",
+            "cross_platform_spread": 0
+        }
+        
+        response = local_client.post("/predict", json=payload)
+        assert response.status_code == 500
+        assert "Model not loaded" in response.json()["detail"]
 
-# Mocking or deeper logic tests
-# If we wanted to test the heuristics independently:
-
-from main import guess_language, get_toxicity, get_sentiment_score_label
-
-def test_nlp_heuristics():
-    # Language
-    assert guess_language("Hello world") == "en"
-    assert guess_language("Привет") == "ru"
-    
-    # Toxicity
-    assert get_toxicity("I hate you idiot") > 0.0
-    assert get_toxicity("I love you") == 0.0
-    
-    # Sentiment
-    score, label = get_sentiment_score_label("I love this amazing product")
-    assert label == "positive"
-    assert score > 0
