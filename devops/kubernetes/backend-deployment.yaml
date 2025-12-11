@@ -19,30 +19,82 @@ spec:
       labels:
         app: backend
     spec:
+      # ----------------------------
+      # INIT CONTAINER: downloads HF models
+      # ----------------------------
+	initContainers:
+	- name: model-downloader
+	  image: raginimetlapalli/model-downloader:latest
+	  env:
+	  - name: HF_CACHE
+	    value: "/models"
+	  - name: TRANSFORMERS_CACHE
+	    value: "/models"
+	  - name: HF_HOME
+	    value: "/models"
+	  volumeMounts:
+	  - name: hf-cache
+	    mountPath: /models
+	  resources:
+	    requests:
+	      cpu: "500m"
+	      memory: "3Gi"
+	    limits:
+	      cpu: "1"
+	      memory: "4Gi"
+
+
+      # ----------------------------
+      # MAIN APPLICATION CONTAINER
+      # ----------------------------
       containers:
       - name: backend
         image: raginimetlapalli/social-media-engagement-backend:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
+
         env:
+        - name: HF_HOME
+          value: "/models"
+        - name: TRANSFORMERS_CACHE
+          value: "/models"
+        - name: HF_CACHE
+          value: "/models"
         - name: ENV
           value: "production"
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "256Mi"
-          limits:
-            cpu: "500m"
-            memory: "1024Mi"
-        livenessProbe:
+
+        volumeMounts:
+        - name: hf-cache
+          mountPath: "/models"
+
+        # Probes (give enough time for heavy model loading)
+        readinessProbe:
           httpGet:
             path: /
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
-        readinessProbe:
+
+        livenessProbe:
           httpGet:
             path: /
             port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 5
+          initialDelaySeconds: 60
+          periodSeconds: 20
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "4Gi"
+
+      # ----------------------------
+      # SHARED VOLUME (PERSISTENT STORAGE)
+      # ----------------------------
+      volumes:
+      - name: hf-cache
+        persistentVolumeClaim:
+          claimName: hf-models-pvc

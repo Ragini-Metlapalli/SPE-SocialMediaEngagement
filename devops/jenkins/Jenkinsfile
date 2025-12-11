@@ -52,15 +52,23 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    withKubeConfig([credentialsId: "${KUBECONFIG_ID}"]) {
+                     withKubeConfig([credentialsId: "${KUBECONFIG_ID}"]) {
                          sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/backend-deployment.yaml"
                          sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/frontend-deployment.yaml"
                          
+                         sh 'kubectl apply -f devops/kubernetes/backend-pvc.yaml'
                          sh 'kubectl apply -f devops/kubernetes/backend-deployment.yaml'
                          sh 'kubectl apply -f devops/kubernetes/frontend-deployment.yaml'
                          sh 'kubectl apply -f devops/kubernetes/backend-service.yaml'
                          sh 'kubectl apply -f devops/kubernetes/frontend-service.yaml'
                          sh 'kubectl apply -f devops/kubernetes/backend-hpa.yaml'
+                         
+                         // VERIFICATION: Wait for pods to be ready (prevents false success)
+                         echo "Waiting for Backend to allow traffic (Max 20 mins for large model download)..."
+                         sh 'kubectl rollout status deployment/social-media-backend --timeout=1200s'
+                         
+                         echo "Waiting for Frontend to be ready..."
+                         sh 'kubectl rollout status deployment/social-media-frontend --timeout=300s'
                     }
                 }
             }

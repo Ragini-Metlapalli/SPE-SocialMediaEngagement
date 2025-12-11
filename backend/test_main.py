@@ -7,12 +7,19 @@ from main import app  # Import app first
 # TESTS
 # ---------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def mock_heavy_loads():
+    """Globally mock heavy startup tasks for ALL tests."""
+    with patch("main.joblib.load"), \
+         patch("main.load_nlp_models", return_value={}):
+        yield
+
 def test_read_root():
-    """Verify the API is running."""
-    client = TestClient(app)
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+    """Verify the API is running (Mocks active due to autouse)."""
+    with TestClient(app) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert response.json()["status"] == "healthy"
 
 def test_predict_success():
     """Test /predict with valid payload and mocked models."""
