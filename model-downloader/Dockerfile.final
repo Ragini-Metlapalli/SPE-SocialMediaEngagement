@@ -1,0 +1,18 @@
+# Reuse your existing image — no dependency downloads needed
+FROM raginimetlapalli/model-downloader:latest
+
+# Ensure model cache location exists
+RUN mkdir -p /models
+ENV HF_CACHE=/models
+ENV TRANSFORMERS_CACHE=/models
+ENV HF_HOME=/models
+
+# Copy your model download script
+COPY download_models_2.py /app/download_models_2.py
+
+# RUN the script AT BUILD TIME → downloads only ONCE
+RUN python /app/download_models_2.py
+
+# This image should not download again at runtime
+CMD ["echo", "Models pre-downloaded successfully"]
+
