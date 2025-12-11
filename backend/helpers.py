@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
 import re
-from transformers import pipeline
-from detoxify import Detoxify
 
 # ---------------------------------------------------------
 # CONSTANTS
@@ -14,6 +12,8 @@ TOPIC_OPTIONS = [
 ]
 
 def load_nlp_models():
+    from transformers import pipeline
+    from detoxify import Detoxify
     """
     Loads heavy NLP models.
     NOTE: This might take time on first run.
