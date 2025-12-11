@@ -1,5 +1,9 @@
 pipeline {
     agent any
+    options {
+    	timeout(time: 180, unit: 'MINUTES')   // job can run for 3 hours
+    }
+
 
     environment {
         DOCKER_HUB_REPO = "raginimetlapalli/social-media-engagement"
@@ -68,10 +72,10 @@ pipeline {
                          sh 'kubectl apply -f devops/kubernetes/backend-hpa.yaml'
                          
                          // VERIFICATION: Wait for pods to be ready (prevents false success)
-                         echo "Waiting for Frontend to be ready..."
-                         sh 'kubectl rollout status deployment/social-media-frontend --timeout=300s'
+                         echo "Waiting for Frontend to be ready"
+                         sh 'kubectl rollout status deployment/social-media-frontend'
                          
-                         echo "Waiting for Backend to allow traffic (Max 20 mins for large model download)..."
+                         echo "Waiting for Backend to allow traffic" 
                          sh 'kubectl rollout status deployment/social-media-backend'
                          
 
