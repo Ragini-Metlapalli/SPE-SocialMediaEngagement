@@ -17,10 +17,13 @@ pipeline {
         stage('Test Backend') {
             steps {
                 script {
-                    // Optimized: Use Docker BuildKit caching.
-                    // This builds the 'test' stage. If 'requirements.txt' is unchanged, 
-                    // the 'pip install' layer is retrieved from cache instantly.
-                    sh 'docker build --target test -t backend-test ./backend'
+                    // Only run tests — DO NOT build the test stage of the Dockerfile
+                    // because the Dockerfile no longer has a "test" target.
+                    sh '''
+                        cd backend
+                        pip install -r requirements-test.txt
+                        pytest -q
+                    '''
                 }
             }
         }
