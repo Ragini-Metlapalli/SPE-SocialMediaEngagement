@@ -15,23 +15,12 @@ pipeline {
         }
 
         stage('Test Backend') {
-            agent {
-                docker { image 'python:3.9' }
-            }
             steps {
                 script {
-                    dir('backend') {
-                        // Use a virtual environment to avoid permission issues (writing to / or /usr)
-                        // and ensure we are isolated.
-                        sh '''
-                            python -m venv venv
-                            . venv/bin/activate
-
-
-                            pip install --no-cache-dir -r requirements.txt
-                            pytest
-                        '''
-                    }
+                    // Optimized: Use Docker BuildKit caching.
+                    // This builds the 'test' stage. If 'requirements.txt' is unchanged, 
+                    // the 'pip install' layer is retrieved from cache instantly.
+                    sh 'docker build --target test -t backend-test ./backend'
                 }
             }
         }

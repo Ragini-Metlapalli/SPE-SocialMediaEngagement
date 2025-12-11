@@ -15,6 +15,7 @@ from helpers import (
 # ---------------------------------------------------------
 # GLOBAL STATE
 # ---------------------------------------------------------
+# ---------------------------------------------------------
 model = None
 nlp_pipelines = {}
 
@@ -80,13 +81,13 @@ class PredictionResponse(BaseModel):
 def read_root():
     return {"status": "healthy", "message": "Social Media Engagement API is running with NLP Power"}
 
+
+
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest):
     if not model:
         raise HTTPException(status_code=500, detail="Model not loaded")
-    if not nlp_pipelines:
-         raise HTTPException(status_code=500, detail="NLP models not loaded")
-
+    
     try:
         # 1. Extract NLP Features
         nlp_features = extract_caption_features(request.caption, nlp_pipelines)

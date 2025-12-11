@@ -48,7 +48,7 @@ const EngagementForm = () => {
                 account_age_days: parseInt(formData.account_age_days)
             };
 
-            const response = await axios.post('http://localhost:8000/predict', payload);
+            const response = await axios.post('/api/predict', payload);
             setResult(response.data);
         } catch (err) {
             console.error(err);
@@ -199,7 +199,7 @@ const EngagementForm = () => {
                                 <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                                     <div className="text-gray-400 text-sm mb-1">Sentiment</div>
                                     <div className={`text-xl font-bold capitalize ${result.nlp_insights.sentiment_category === 'positive' ? 'text-green-400' :
-                                            result.nlp_insights.sentiment_category === 'negative' ? 'text-red-400' : 'text-yellow-400'
+                                        result.nlp_insights.sentiment_category === 'negative' ? 'text-red-400' : 'text-yellow-400'
                                         }`}>
                                         {result.nlp_insights.sentiment_category}
                                     </div>
