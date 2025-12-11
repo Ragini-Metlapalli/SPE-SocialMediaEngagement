@@ -54,11 +54,10 @@ pipeline {
             steps {
                 script {
                      withKubeConfig([credentialsId: "${KUBECONFIG_ID}"]) {
-                         // Update only backend image
-			 sed -i "s|social-media-engagement-backend:latest|social-media-engagement-backend:${IMAGE_TAG}|g" devops/kubernetes/backend-deployment.yaml
-
-			 // Update only frontend image
-			 sed -i "s|social-media-engagement-frontend:latest|social-media-engagement-frontend:${IMAGE_TAG}|g" devops/kubernetes/frontend-deployment.yaml
+		         sh """
+		             sed -i 's|social-media-engagement-backend:latest|social-media-engagement-backend:${IMAGE_TAG}|g' devops/kubernetes/backend-deployment.yaml
+		             sed -i 's|social-media-engagement-frontend:latest|social-media-engagement-frontend:${IMAGE_TAG}|g' devops/kubernetes/frontend-deployment.yaml
+		         """
 
                          
                          sh 'kubectl apply -f devops/kubernetes/backend-pvc.yaml'
