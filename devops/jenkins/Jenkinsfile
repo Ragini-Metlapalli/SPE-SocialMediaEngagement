@@ -54,10 +54,10 @@ pipeline {
             steps {
                 script {
                      withKubeConfig([credentialsId: "${KUBECONFIG_ID}"]) {
-                         # Update only backend image
+                         // Update only backend image
 			 sed -i "s|social-media-engagement-backend:latest|social-media-engagement-backend:${IMAGE_TAG}|g" devops/kubernetes/backend-deployment.yaml
 
-			 # Update only frontend image
+			 // Update only frontend image
 			 sed -i "s|social-media-engagement-frontend:latest|social-media-engagement-frontend:${IMAGE_TAG}|g" devops/kubernetes/frontend-deployment.yaml
 
                          
@@ -69,11 +69,13 @@ pipeline {
                          sh 'kubectl apply -f devops/kubernetes/backend-hpa.yaml'
                          
                          // VERIFICATION: Wait for pods to be ready (prevents false success)
-                         echo "Waiting for Backend to allow traffic (Max 20 mins for large model download)..."
-                         sh 'kubectl rollout status deployment/social-media-backend --timeout=1200s'
-                         
                          echo "Waiting for Frontend to be ready..."
                          sh 'kubectl rollout status deployment/social-media-frontend --timeout=300s'
+                         
+                         echo "Waiting for Backend to allow traffic (Max 20 mins for large model download)..."
+                         sh 'kubectl rollout status deployment/social-media-backend'
+                         
+
                     }
                 }
             }
