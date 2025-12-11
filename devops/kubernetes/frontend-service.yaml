@@ -4,16 +4,10 @@ metadata:
   name: social-media-service
 spec:
   selector:
-    app: social-media-app
+    app: frontend
   ports:
-    - name: frontend
-      protocol: TCP
+    - protocol: TCP
       port: 80
       targetPort: 80
       nodePort: 30001
-    
-    - name: backend
-      protocol: TCP
-      port: 8000
-      targetPort: 8000
   type: NodePort

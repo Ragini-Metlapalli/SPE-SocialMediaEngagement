@@ -1,21 +1,20 @@
-# Stage 1: Base (Dependencies)
-FROM python:3.9-slim AS base
+# Stage 1: Base (Now uses the Pre-Built Image)
+# We assume 'social-media-backend-base:latest' fails if not built, 
+# BUT for local dev we can just use it.
+# Ideally, we push this base to DockerHub, but for local/minikube:
+FROM social-media-backend-base:latest AS base
 WORKDIR /app
+# Dependencies are ALREADY installed in the base image!
 
-# Install system dependencies if any (usually not needed for pure python, but good practice)
-# RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-# This layer is CACHED unless requirements.txt changes
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Stage 2: Test (Runs tests)
+# Stage 2: Test
 FROM base AS test
+COPY requirements-test.txt .
+RUN pip install --no-cache-dir -r requirements-test.txt
 COPY . .
-# We can run pytest directly using this stage
+# Runs tests instantly
 RUN python -m pytest test_main.py
 
-# Stage 3: Production (Lean, runs app)
+# Stage 3: Production
 FROM base AS production
 COPY . .
 EXPOSE 8000

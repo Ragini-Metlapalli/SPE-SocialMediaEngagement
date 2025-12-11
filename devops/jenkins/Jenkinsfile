@@ -53,10 +53,14 @@ pipeline {
             steps {
                 script {
                     withKubeConfig([credentialsId: "${KUBECONFIG_ID}"]) {
-                         sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/deployment.yaml"
-                         sh 'kubectl apply -f devops/kubernetes/deployment.yaml'
-                         sh 'kubectl apply -f devops/kubernetes/service.yaml'
-                         sh 'kubectl apply -f devops/kubernetes/hpa.yaml'
+                         sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/backend-deployment.yaml"
+                         sh "sed -i 's/latest/${IMAGE_TAG}/g' devops/kubernetes/frontend-deployment.yaml"
+                         
+                         sh 'kubectl apply -f devops/kubernetes/backend-deployment.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/frontend-deployment.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/backend-service.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/frontend-service.yaml'
+                         sh 'kubectl apply -f devops/kubernetes/backend-hpa.yaml'
                     }
                 }
             }
