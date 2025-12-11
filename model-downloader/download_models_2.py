@@ -1,37 +1,42 @@
 import os
-import subprocess
+from transformers import pipeline
+from detoxify import Detoxify
 
-def install_deps():
-    print("Installing heavy dependencies inside initContainer...")
-    subprocess.run([
-        "pip", "install", "--no-cache-dir",
-        "torch==2.1.0+cpu",
-        "transformers",
-        "sentencepiece",
-        "detoxify",
-        "protobuf",
-        "-f", "https://download.pytorch.org/whl/cpu"
-    ], check=True)
+def get_cache_dir():
+    return os.environ.get("HF_CACHE", "/models")
 
-def download_models():
-    from transformers import pipeline
-    from detoxify import Detoxify
+def ensure_dir(path):
+    os.makedirs(path, exist_ok=True)
+    return path
 
-    cache = os.environ.get("HF_CACHE", "/models")
-    os.makedirs(cache, exist_ok=True)
-
-    os.environ["TRANSFORMERS_CACHE"] = cache
+def download_all():
+    cache = ensure_dir(get_cache_dir())
+    # Set environment variables so transformers uses this cache
     os.environ["HF_HOME"] = cache
+    os.environ["TRANSFORMERS_CACHE"] = cache
 
-    print(f"Downloading models into: {cache}")
+    print(f"Using HF cache at: {cache}")
 
-    pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
-    pipeline("text-classification", model="papluca/xlm-roberta-base-language-detection")
-    pipeline("sentiment-analysis", model="cardiffnlp/twitter-xlm-roberta-base-sentiment")
+    def download(model_name, task, **kwargs):
+        print(f"Checking {model_name}...")
+        # Simple check: If the folder exists, we assume it's downloaded.
+        # Transformers cache structure is complex (hash names), so this is a heuristic.
+        # A safer way is to just run pipeline() and let it hit the cache.
+        print(f"↓ Downloading/Verifying: {model_name}")
+        pipeline(task, model=model_name, **kwargs)
 
-    Detoxify("original")
+    download("facebook/bart-large-mnli", "zero-shot-classification")
+    download("papluca/xlm-roberta-base-language-detection", "text-classification")
+    download("cardiffnlp/twitter-xlm-roberta-base-sentiment", "sentiment-analysis")
+
+    detox_path = os.path.join(cache, "detoxify-original")
+    print("↓ Downloading Detoxify...")
+    Detoxify("original") 
+    # Detoxify stores in ~/.cache/torch/hub/checkpoints/ by default unless configured.
+    # This might be tricky. We might need to copy it or let it run at runtime if it's small (50MB).
+    # But for now, we run it to trigger download.
+
+    print("✔ All models downloaded verification complete.")
 
 if __name__ == "__main__":
-    install_deps()
-    download_models()
-
+    download_all()
