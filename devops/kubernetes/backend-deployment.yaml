@@ -26,7 +26,7 @@ spec:
       # ----------------------------
       initContainers:
         - name: model-downloader
-          image: raginimetlapalli/model-downloader:latest
+          image: raginimetlapalli/social-media-engagement-model-downloader:latest
           env:
             - name: HF_CACHE
               value: "/models"
