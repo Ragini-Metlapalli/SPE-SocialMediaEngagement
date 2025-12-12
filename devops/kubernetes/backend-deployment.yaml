@@ -39,7 +39,7 @@ spec:
 		mkdir -p /models-cache/checkpoints
 		cp -r /root/.cache/torch/hub/checkpoints/* /models-cache/checkpoints/ || true
 
-	      echo "All models copied into PVC."
+	        echo "All models copied into PVC."
 	  volumeMounts:
 	    - name: hf-cache
 	      mountPath: /models-cache
