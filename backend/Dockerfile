@@ -5,9 +5,14 @@ WORKDIR /app
 # FIX scikit-learn model compatibility
 RUN pip uninstall -y scikit-learn && pip install scikit-learn==1.2.2
 
-# FIX NumPy 2.0 incompatibility (VERY IMPORTANT)
+# FIX NumPy 2.0 incompatibility
 RUN pip uninstall -y numpy && pip install numpy==1.26.4
 
+# Install curl + unzip (REQUIRED)
+RUN apt-get update && apt-get install -y curl unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Storj uplink CLI
 RUN curl -L https://github.com/storj/storj/releases/latest/download/uplink_linux_amd64.zip -o uplink.zip \
     && unzip uplink.zip -d /usr/local/bin \
     && chmod +x /usr/local/bin/uplink \
