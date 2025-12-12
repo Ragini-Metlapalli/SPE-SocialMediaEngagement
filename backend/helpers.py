@@ -1,6 +1,12 @@
 import pandas as pd
 import numpy as np
 import re
+import os
+os.environ["HF_HOME"] = "/models"
+os.environ["TRANSFORMERS_CACHE"] = "/models"
+os.environ["HF_CACHE"] = "/models"
+os.environ["TORCH_HOME"] = "/models"
+
 
 # ---------------------------------------------------------
 # CONSTANTS
@@ -18,19 +24,29 @@ def load_nlp_models():
     Loads heavy NLP models.
     NOTE: This might take time on first run.
     """
-    print(" Loading Topic Classifier...")
-    # Zero-shot classification
-    topic_classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+    topic_classifier = pipeline(
+        "zero-shot-classification",
+        model="/models/models--facebook--bart-large-mnli",
+        local_files_only=True
+    )
 
-    print(" Loading Language Detector...")
-    lang_detector = pipeline("text-classification", model="papluca/xlm-roberta-base-language-detection")
+    lang_detector = pipeline(
+        "text-classification",
+        model="/models/models--papluca--xlm-roberta-base-language-detection",
+        local_files_only=True
+    )
 
-    print(" Loading Sentiment Analyzer...")
-    # Returns score for Negative, Neutral, Positive
-    sentiment_analyzer = pipeline("sentiment-analysis", model="cardiffnlp/twitter-xlm-roberta-base-sentiment")
+    sentiment_analyzer = pipeline(
+        "sentiment-analysis",
+        model="/models/models--cardiffnlp--twitter-xlm-roberta-base-sentiment",
+        local_files_only=True
+    )
 
-    print(" Loading Detoxify...")
-    toxicity_model = Detoxify("original")
+    toxicity_model = Detoxify(
+        "original",
+        checkpoint="/models/checkpoints/toxic_original-c1212f89.ckpt"
+    )
+
 
     return {
         "topic": topic_classifier,

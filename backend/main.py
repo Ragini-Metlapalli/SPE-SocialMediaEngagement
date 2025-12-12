@@ -6,6 +6,16 @@ import pandas as pd
 import numpy as np
 import re
 from contextlib import asynccontextmanager
+
+import os
+
+os.environ["HF_HOME"] = "/models"
+os.environ["TRANSFORMERS_CACHE"] = "/models"
+os.environ["HF_CACHE"] = "/models"
+os.environ["TORCH_HOME"] = "/models"
+
+
+
 from helpers import (
     load_nlp_models,
     extract_caption_features,
