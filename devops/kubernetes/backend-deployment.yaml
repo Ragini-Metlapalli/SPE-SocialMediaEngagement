@@ -25,33 +25,33 @@ spec:
       # ----------------------------
       # INIT CONTAINER
       # ----------------------------
-      initContainers:
-        - name: model-preloader
-          image: raginimetlapalli/model-downloader-final:latest
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              echo "Copying HF models from image → PVC..."
-              mkdir -p /models-cache
-              cp -r /models/* /models-cache/ || true
+      # initContainers:
+      #   - name: model-preloader
+      #     image: raginimetlapalli/model-downloader-final:latest
+      #     command: ["/bin/sh", "-c"]
+      #     args:
+      #       - |
+      #         echo "Copying HF models from image → PVC..."
+      #         mkdir -p /models-cache
+      #         cp -r /models/* /models-cache/ || true
 
-              echo "Copying Detoxify checkpoint..."
-              mkdir -p /models-cache/checkpoints
-              cp -r /root/.cache/torch/hub/checkpoints/* /models-cache/checkpoints/ || true
+      #         echo "Copying Detoxify checkpoint..."
+      #         mkdir -p /models-cache/checkpoints
+      #         cp -r /root/.cache/torch/hub/checkpoints/* /models-cache/checkpoints/ || true
 
-              echo "All models copied into PVC."
+      #         echo "All models copied into PVC."
 
-          volumeMounts:
-            - name: hf-cache
-              mountPath: /models-cache
+      #     volumeMounts:
+      #       - name: hf-cache
+      #         mountPath: /models-cache
 
-          resources:
-            requests:
-              cpu: "500m"
-              memory: "3Gi"
-            limits:
-              cpu: "1"
-              memory: "4Gi"
+      #     resources:
+      #       requests:
+      #         cpu: "500m"
+      #         memory: "3Gi"
+      #       limits:
+      #         cpu: "1"
+      #         memory: "4Gi"
 
       # ----------------------------
       # MAIN CONTAINER
@@ -74,6 +74,18 @@ spec:
             - name: TORCH_HOME
               value: "/models/checkpoints"
 
+            - name: STORJ_ACCESS_GRANT
+              valueFrom:
+                secretKeyRef:
+                  name: storj-secret
+                  key: ACCESS_GRANT
+
+            - name: STORJ_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: storj-secret
+                  key: BUCKET 
+
           volumeMounts:
             - name: hf-cache
               mountPath: "/models"
@@ -92,13 +104,13 @@ spec:
           #   initialDelaySeconds: 60
           #   periodSeconds: 20
 
-          startupProbe:
-            httpGet:
-              path: /
-              port: 8000
-            failureThreshold: 60
-            periodSeconds: 10
-            # Gives 600 seconds = 10 min to fully start
+          # startupProbe:
+          #   httpGet:
+          #     path: /
+          #     port: 8000
+          #   failureThreshold: 60
+          #   periodSeconds: 10
+          #   # Gives 600 seconds = 10 min to fully start
 
           readinessProbe:
             httpGet:
@@ -117,11 +129,11 @@ spec:
 
           resources:
             requests:
-              cpu: "500m"
-              memory: "4Gi"
+              cpu: "100m"
+              memory: "1Gi"
             limits:
-              cpu: "2"
-              memory: "12Gi"
+              cpu: "1000m"
+              memory: "4Gi"
 
       # ----------------------------
       # VOLUMES

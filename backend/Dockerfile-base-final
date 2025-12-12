@@ -1,0 +1,36 @@
+# --- Lightweight Python base ---
+FROM python:3.9-slim
+
+# --- System dependencies needed by Torch, Transformers, Detoxify ---
+RUN apt-get update && apt-get install -y \
+    git \
+    libgomp1 \
+    libstdc++6 \
+    libffi-dev \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# --- Install minimal requirements ---
+# Torch CPU-only (VERY IMPORTANT)
+RUN pip install --no-cache-dir torch==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
+
+# NLP + classical ML stack
+RUN pip install --no-cache-dir \
+    transformers==4.37.2 \
+    detoxify==0.5.2 \
+    sentencepiece \
+    scikit-learn \
+    pandas \
+    numpy \
+    lightgbm \
+    joblib \
+    fastapi \
+    uvicorn
+
+# Optional but useful for HuggingFace
+RUN pip install --no-cache-dir huggingface_hub
+
+CMD ["python3"]
+

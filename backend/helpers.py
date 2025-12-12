@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import subprocess
 import os, glob
 os.environ["HF_HOME"] = "/models"
 os.environ["TRANSFORMERS_CACHE"] = "/models"
@@ -17,11 +18,38 @@ TOPIC_OPTIONS = [
     "Entertainment", "Science", "AI/ML", "Technology"
 ]
 
+
+
+def download_from_storj_if_missing():
+    target = "/models"
+
+    # Check if models already exist in PVC
+    if os.path.exists(f"{target}/models--facebook--bart-large-mnli"):
+        print(" Models already in PVC. Skipping Storj download.")
+        return
+
+    print(" Downloading models from Storj to PVC...")
+
+    ACCESS_GRANT = os.environ["STORJ_ACCESS_GRANT"]
+    BUCKET = os.environ.get("STORJ_BUCKET", "hf-models")
+
+    # Download entire folder from Storj
+    cmd = f"""
+    uplink --access '{ACCESS_GRANT}' cp -r sj://{BUCKET}/* {target}/
+    """
+    subprocess.run(cmd, shell=True, check=True)
+
+    print(" Storj models downloaded.")
+
+
 def resolve_snapshot(model_dir):
     snaps = glob.glob(os.path.join(model_dir, "snapshots", "*"))
     return snaps[0]  # first snapshot directory
 
 def load_nlp_models():
+    download_from_storj_if_missing()
+
+
     from transformers import pipeline
     from detoxify import Detoxify
     """
