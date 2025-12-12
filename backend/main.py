@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import re
 from contextlib import asynccontextmanager
-from helpers import download_from_storj_if_missing
+
 
 
 import os
@@ -33,6 +33,7 @@ nlp_pipelines = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from helpers import download_from_storj_if_missing
     # Load LightGBM/Sklearn Model
     download_from_storj_if_missing()
     global model

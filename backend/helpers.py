@@ -18,8 +18,6 @@ TOPIC_OPTIONS = [
     "Entertainment", "Science", "AI/ML", "Technology"
 ]
 
-
-
 def download_from_storj_if_missing():
     target = "/models"
 
@@ -27,19 +25,20 @@ def download_from_storj_if_missing():
     if os.path.exists(f"{target}/models--facebook--bart-large-mnli"):
         print(" Models already in PVC. Skipping Storj download.")
         return
-
-    print(" Downloading models from Storj to PVC...")
-
-    ACCESS_GRANT = os.environ["STORJ_ACCESS_GRANT"]
+    # Skip when running in CI or unit tests
+    ACCESS_GRANT = os.environ.get("STORJ_ACCESS_GRANT")
     BUCKET = os.environ.get("STORJ_BUCKET", "hf-models")
 
-    # Download entire folder from Storj
-    cmd = f"""
-    uplink --access '{ACCESS_GRANT}' cp -r sj://{BUCKET}/* {target}/
-    """
-    subprocess.run(cmd, shell=True, check=True)
+    if not ACCESS_GRANT:
+        print("STORJ_ACCESS_GRANT not set → skipping Storj download.")
+        return  # <-- IMPORTANT FIX
 
-    print(" Storj models downloaded.")
+    print("Downloading models from Storj...")
+    subprocess.run("uplink import --force dev-grant <(echo \"$STORJ_ACCESS_GRANT\")", shell=True)
+    subprocess.run(f"uplink cp sj://{BUCKET}/* /models/", shell=True)
+
+
+
 
 
 def resolve_snapshot(model_dir):
