@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
-import os
+import os, glob
 os.environ["HF_HOME"] = "/models"
 os.environ["TRANSFORMERS_CACHE"] = "/models"
 os.environ["HF_CACHE"] = "/models"
@@ -17,6 +17,10 @@ TOPIC_OPTIONS = [
     "Entertainment", "Science", "AI/ML", "Technology"
 ]
 
+def resolve_snapshot(model_dir):
+    snaps = glob.glob(os.path.join(model_dir, "snapshots", "*"))
+    return snaps[0]  # first snapshot directory
+
 def load_nlp_models():
     from transformers import pipeline
     from detoxify import Detoxify
@@ -24,28 +28,43 @@ def load_nlp_models():
     Loads heavy NLP models.
     NOTE: This might take time on first run.
     """
-    topic_classifier = pipeline(
-        "zero-shot-classification",
-        model="/models/models--facebook--bart-large-mnli",
-        local_files_only=True
-    )
+    # topic_classifier = pipeline(
+    #     "zero-shot-classification",
+    #     model="/models/models--facebook--bart-large-mnli",
+    #     local_files_only=True
+    # )
 
-    lang_detector = pipeline(
-        "text-classification",
-        model="/models/models--papluca--xlm-roberta-base-language-detection",
-        local_files_only=True
-    )
+    # lang_detector = pipeline(
+    #     "text-classification",
+    #     model="/models/models--papluca--xlm-roberta-base-language-detection",
+    #     local_files_only=True
+    # )
 
-    sentiment_analyzer = pipeline(
-        "sentiment-analysis",
-        model="/models/models--cardiffnlp--twitter-xlm-roberta-base-sentiment",
-        local_files_only=True
-    )
+    # sentiment_analyzer = pipeline(
+    #     "sentiment-analysis",
+    #     model="/models/models--cardiffnlp--twitter-xlm-roberta-base-sentiment",
+    #     local_files_only=True
+    # )
 
-    toxicity_model = Detoxify(
-        "original",
-        checkpoint="/models/checkpoints/toxic_original-c1212f89.ckpt"
-    )
+
+    base_dir = "/models"
+
+    bart_dir = resolve_snapshot(f"{base_dir}/models--facebook--bart-large-mnli")
+    topic_classifier = pipeline("zero-shot-classification", model=bart_dir)
+
+    lang_dir = resolve_snapshot(f"{base_dir}/models--papluca--xlm-roberta-base-language-detection")
+    lang_detector = pipeline("text-classification", model=lang_dir)
+
+    sent_dir = resolve_snapshot(f"{base_dir}/models--cardiffnlp--twitter-xlm-roberta-base-sentiment")
+    sentiment_analyzer = pipeline("sentiment-analysis", model=sent_dir)
+
+
+    # toxicity_model = Detoxify(
+    #     "original",
+    #     checkpoint="/models/checkpoints/toxic_original-c1212f89.ckpt"
+    # )
+
+    toxicity_model = Detoxify("original")
 
 
     return {
