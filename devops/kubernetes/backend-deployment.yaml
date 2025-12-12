@@ -78,19 +78,42 @@ spec:
             - name: hf-cache
               mountPath: "/models"
 
+          # readinessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: 8000
+          #   initialDelaySeconds: 30
+          #   periodSeconds: 10
+
+          # livenessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: 8000
+          #   initialDelaySeconds: 60
+          #   periodSeconds: 20
+
+          startupProbe:
+            httpGet:
+              path: /
+              port: 8000
+            failureThreshold: 60
+            periodSeconds: 10
+            # Gives 600 seconds = 10 min to fully start
+
           readinessProbe:
             httpGet:
               path: /
               port: 8000
-            initialDelaySeconds: 30
+            initialDelaySeconds: 20
             periodSeconds: 10
 
           livenessProbe:
             httpGet:
               path: /
               port: 8000
-            initialDelaySeconds: 60
+            initialDelaySeconds: 120
             periodSeconds: 20
+
 
           resources:
             requests:
