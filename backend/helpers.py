@@ -64,6 +64,7 @@ def load_nlp_models():
     #     checkpoint="/models/checkpoints/toxic_original-c1212f89.ckpt"
     # )
 
+    os.environ["TORCH_HOME"] = "/models/checkpoints"
     toxicity_model = Detoxify("original")
 
 
